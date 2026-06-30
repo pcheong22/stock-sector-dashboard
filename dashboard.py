@@ -12,13 +12,94 @@ those are Phase 2/3 concerns and live elsewhere (decision_journal.py).
 
 from __future__ import annotations
 
+import base64
+import json
+from datetime import date as date_cls
+
 import pandas as pd
+import requests
 import streamlit as st
 
 import storage
 from momentum_model import aggregate_sector_breadth
 
 st.set_page_config(page_title="Stock & Sector Rankings", layout="wide")
+
+# --- GitHub-backed decision journal -----------------------------------
+# Streamlit Cloud's filesystem is ephemeral and never syncs back to your
+# repo, so logging a journal entry has to go through the GitHub API
+# directly -- this writes the entry as a real commit to data/decision_journal.csv
+# in your repo, the same file decision_journal.py / batch_review() reads.
+#
+# Requires three values in Streamlit Cloud's app secrets (Settings -> Secrets):
+#   GITHUB_TOKEN = a fine-grained PAT with "Contents: Read and write" on this repo
+#   GITHUB_REPO  = "yourusername/your-repo-name"
+#   GITHUB_BRANCH = "main"   (optional, defaults to main)
+JOURNAL_PATH_IN_REPO = "data/decision_journal.csv"
+JOURNAL_COLUMNS = ["Date", "Decision", "DashboardInfluenced", "Reason", "Outcome", "Notes", "Ticker"]
+
+
+def _gh_headers():
+    return {
+        "Authorization": f"Bearer {st.secrets['GITHUB_TOKEN']}",
+        "Accept": "application/vnd.github+json",
+    }
+
+
+def _gh_api_url():
+    repo = st.secrets["GITHUB_REPO"]
+    return f"https://api.github.com/repos/{repo}/contents/{JOURNAL_PATH_IN_REPO}"
+
+
+def journal_configured() -> bool:
+    return "GITHUB_TOKEN" in st.secrets and "GITHUB_REPO" in st.secrets
+
+
+def append_journal_entry_via_github(entry: dict) -> None:
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    url = _gh_api_url()
+
+    resp = requests.get(url, headers=_gh_headers(), params={"ref": branch})
+    if resp.status_code == 200:
+        payload = resp.json()
+        existing_content = base64.b64decode(payload["content"]).decode("utf-8")
+        sha = payload["sha"]
+        from io import StringIO
+        df = pd.read_csv(StringIO(existing_content))
+    elif resp.status_code == 404:
+        df = pd.DataFrame(columns=JOURNAL_COLUMNS)
+        sha = None
+    else:
+        raise RuntimeError(f"GitHub API error reading journal: {resp.status_code} {resp.text}")
+
+    df = pd.concat([df, pd.DataFrame([entry])], ignore_index=True)
+    new_content = df.to_csv(index=False)
+    encoded = base64.b64encode(new_content.encode("utf-8")).decode("utf-8")
+
+    body = {
+        "message": f"Decision journal entry: {entry['Date']} ({entry.get('Ticker') or 'general'})",
+        "content": encoded,
+        "branch": branch,
+    }
+    if sha:
+        body["sha"] = sha
+
+    put_resp = requests.put(url, headers=_gh_headers(), data=json.dumps(body))
+    if put_resp.status_code not in (200, 201):
+        raise RuntimeError(f"GitHub API error writing journal: {put_resp.status_code} {put_resp.text}")
+
+
+def read_journal_via_github() -> pd.DataFrame:
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    resp = requests.get(_gh_api_url(), headers=_gh_headers(), params={"ref": branch})
+    if resp.status_code == 404:
+        return pd.DataFrame(columns=JOURNAL_COLUMNS)
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitHub API error reading journal: {resp.status_code} {resp.text}")
+    content = base64.b64decode(resp.json()["content"]).decode("utf-8")
+    from io import StringIO
+    return pd.read_csv(StringIO(content))
+# ------------------------------------------------------------------------
 
 
 @st.cache_data(ttl=300)
@@ -45,8 +126,8 @@ def main():
     st.sidebar.caption(f"Model version: {day['ModelVersion'].iloc[0] if not day.empty else 'n/a'}")
     st.sidebar.caption(f"{len(day)} tickers scored on this date.")
 
-    tab_global, tab_sector, tab_drill = st.tabs(
-        ["Global Rankings", "Sector Rankings", "Sector Drill-Down"]
+    tab_global, tab_sector, tab_drill, tab_journal = st.tabs(
+        ["Global Rankings", "Sector Rankings", "Sector Drill-Down", "Log a Decision"]
     )
 
     with tab_global:
@@ -101,7 +182,64 @@ def main():
             height=500,
         )
 
-    with st.expander("Corporate action notes on file for this date"):
+    with tab_journal:
+        st.subheader("Log a Decision")
+        st.caption(
+            "Phase 2 daily log. The Outcome field is intentionally not collected here -- "
+            "it gets filled in during a Phase 3 batch review against forward price data, "
+            "not logged by hand each day."
+        )
+
+        if not journal_configured():
+            st.error(
+                "Journal logging isn't configured yet. Add `GITHUB_TOKEN` and `GITHUB_REPO` "
+                "(and optionally `GITHUB_BRANCH`) in this app's Settings → Secrets, then reload."
+            )
+        else:
+            with st.form("journal_entry_form", clear_on_submit=True):
+                entry_date = st.date_input("Date", value=date_cls.today())
+                decision = st.text_area("What did you decide (or decide not to do)?", height=80)
+                influenced = st.radio(
+                    "Did this dashboard change your decision vs. what you'd have done otherwise?",
+                    ["Y", "N"], horizontal=True,
+                )
+                reason = st.text_area("Why?", height=80)
+                ticker = st.text_input("Ticker this was about (optional)")
+                notes = st.text_area("Anything else worth remembering? (optional)", height=60)
+                submitted = st.form_submit_button("Save entry")
+
+            if submitted:
+                if not decision.strip():
+                    st.warning("Add a description of the decision before saving.")
+                else:
+                    try:
+                        append_journal_entry_via_github({
+                            "Date": str(entry_date),
+                            "Decision": decision.strip(),
+                            "DashboardInfluenced": influenced,
+                            "Reason": reason.strip(),
+                            "Outcome": "",
+                            "Notes": notes.strip(),
+                            "Ticker": ticker.strip(),
+                        })
+                        st.success("Saved to the decision journal.")
+                    except Exception as e:
+                        st.error(f"Couldn't save entry: {e}")
+
+            with st.expander("View past entries"):
+                try:
+                    journal_df = read_journal_via_github()
+                    if journal_df.empty:
+                        st.caption("No entries logged yet.")
+                    else:
+                        st.dataframe(
+                            journal_df.sort_values("Date", ascending=False),
+                            use_container_width=True,
+                        )
+                except Exception as e:
+                    st.error(f"Couldn't load journal: {e}")
+
+
         notes = day.loc[day["CorporateActionNote"].notna(), ["Ticker", "CorporateActionNote"]]
         if notes.empty:
             st.caption("None.")
