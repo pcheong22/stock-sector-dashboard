@@ -179,6 +179,9 @@ def main():
             sector_table["BreadthChange"] = pd.NA
             st.caption("No prior date stored yet -- day-over-day change will appear once a second day is run.")
 
+        sector_table = sector_table.reset_index(drop=True)
+        sector_table.index += 1
+
         fmt = {
             "AvgGlobalScore": "{:.1f}", "MedianGlobalScore": "{:.1f}", "BreadthPct": "{:.0f}%",
             "ScoreChange": "{:+.1f}", "BreadthChange": "{:+.0f}pp",
