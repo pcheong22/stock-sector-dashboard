@@ -22,6 +22,7 @@ import streamlit as st
 
 import storage
 from momentum_model import aggregate_sector_breadth
+from config import SECTOR_ETFS
 
 st.set_page_config(page_title="Stock & Sector Rankings", layout="wide")
 
@@ -126,8 +127,8 @@ def main():
     st.sidebar.caption(f"Model version: {day['ModelVersion'].iloc[0] if not day.empty else 'n/a'}")
     st.sidebar.caption(f"{len(day)} tickers scored on this date.")
 
-    tab_global, tab_sector, tab_drill, tab_journal = st.tabs(
-        ["Global Rankings", "Sector Rankings", "Sector Drill-Down", "Log a Decision"]
+    tab_sector, tab_global, tab_drill, tab_journal = st.tabs(
+        ["Sector Rankings", "Global Rankings", "Sector Drill-Down", "Log a Decision"]
     )
 
     with tab_global:
@@ -150,14 +151,52 @@ def main():
     with tab_sector:
         st.subheader("Sector Rankings")
         st.caption("Aggregated breadth: % of each sector's constituents scoring above 60.")
+
         sector_table = aggregate_sector_breadth(day)
-        st.dataframe(
-            sector_table.style.format({
-                "AvgGlobalScore": "{:.1f}", "MedianGlobalScore": "{:.1f}", "BreadthPct": "{:.0f}%",
-            }),
-            use_container_width=True,
-        )
-        st.bar_chart(sector_table.set_index("Sector")["AvgGlobalScore"])
+
+        # Day-over-day change vs. the prior stored date, so a rotation signal
+        # (e.g. one sector's breadth fading while another's builds) is visible
+        # at a glance instead of requiring a manual compare across dates.
+        idx = available_dates.index(selected_date)
+        prior_date = available_dates[idx + 1] if idx + 1 < len(available_dates) else None
+
+        if prior_date is not None:
+            prior_day = hist[hist["Date"] == prior_date]
+            prior_table = aggregate_sector_breadth(prior_day)[["Sector", "AvgGlobalScore", "BreadthPct"]]
+            prior_table = prior_table.rename(columns={
+                "AvgGlobalScore": "_PriorAvgGlobalScore", "BreadthPct": "_PriorBreadthPct",
+            })
+            sector_table = sector_table.merge(prior_table, on="Sector", how="left")
+            sector_table["ScoreChange"] = sector_table["AvgGlobalScore"] - sector_table["_PriorAvgGlobalScore"]
+            sector_table["BreadthChange"] = sector_table["BreadthPct"] - sector_table["_PriorBreadthPct"]
+            sector_table = sector_table.drop(columns=["_PriorAvgGlobalScore", "_PriorBreadthPct"])
+            st.caption(
+                f"Changes are vs. {pd.Timestamp(prior_date).strftime('%Y-%m-%d')}, "
+                f"the previous stored date."
+            )
+        else:
+            sector_table["ScoreChange"] = pd.NA
+            sector_table["BreadthChange"] = pd.NA
+            st.caption("No prior date stored yet -- day-over-day change will appear once a second day is run.")
+
+        fmt = {
+            "AvgGlobalScore": "{:.1f}", "MedianGlobalScore": "{:.1f}", "BreadthPct": "{:.0f}%",
+            "ScoreChange": "{:+.1f}", "BreadthChange": "{:+.0f}pp",
+        }
+        styled = sector_table.style.format(fmt, na_rep="—")
+        if prior_date is not None:
+            styled = styled.background_gradient(
+                subset=["ScoreChange", "BreadthChange"], cmap="RdYlGn", vmin=-15, vmax=15
+            )
+        st.dataframe(styled, use_container_width=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.bar_chart(sector_table.set_index("Sector")["AvgGlobalScore"])
+        with col2:
+            if prior_date is not None:
+                st.bar_chart(sector_table.set_index("Sector")["BreadthChange"])
+                st.caption("Breadth change (percentage points) vs. prior date")
 
     with tab_drill:
         st.subheader("Sector Drill-Down")
@@ -185,9 +224,10 @@ def main():
     with tab_journal:
         st.subheader("Log a Decision")
         st.caption(
-            "Phase 2 daily log. The Outcome field is intentionally not collected here -- "
-            "it gets filled in during a Phase 3 batch review against forward price data, "
-            "not logged by hand each day."
+            "Phase 2 daily log for sector-level relative-value calls (overweight/underweight "
+            "between sectors, not individual stock picks). The Outcome field is intentionally "
+            "not collected here -- it gets filled in during a Phase 3 batch review against "
+            "forward price data, not logged by hand each day."
         )
 
         if not journal_configured():
@@ -198,13 +238,24 @@ def main():
         else:
             with st.form("journal_entry_form", clear_on_submit=True):
                 entry_date = st.date_input("Date", value=date_cls.today())
-                decision = st.text_area("What did you decide (or decide not to do)?", height=80)
+                decision_type = st.selectbox(
+                    "Decision type",
+                    ["Open / increase overweight", "Trim / reduce overweight",
+                     "Rotate into this sector from another", "Watch only (no action)"],
+                )
+                sector = st.selectbox("Sector", sorted(SECTOR_ETFS.keys()))
+                decision = st.text_area(
+                    "What did you decide? (e.g. 'Overweighted Technology vs. Energy in mock portfolio')",
+                    height=80,
+                )
                 influenced = st.radio(
-                    "Did this dashboard change your decision vs. what you'd have done otherwise?",
+                    "Did the sector rankings/breadth change this vs. what you'd have done otherwise?",
                     ["Y", "N"], horizontal=True,
                 )
-                reason = st.text_area("Why?", height=80)
-                ticker = st.text_input("Ticker this was about (optional)")
+                reason = st.text_area(
+                    "Why? (cite the specific number -- AvgGlobalScore, BreadthPct, rank vs. other sectors)",
+                    height=80,
+                )
                 notes = st.text_area("Anything else worth remembering? (optional)", height=60)
                 submitted = st.form_submit_button("Save entry")
 
@@ -215,12 +266,15 @@ def main():
                     try:
                         append_journal_entry_via_github({
                             "Date": str(entry_date),
-                            "Decision": decision.strip(),
+                            "Decision": f"[{decision_type}] {decision.strip()}",
                             "DashboardInfluenced": influenced,
                             "Reason": reason.strip(),
                             "Outcome": "",
                             "Notes": notes.strip(),
-                            "Ticker": ticker.strip(),
+                            # Stored as the sector's ETF symbol so Phase 3's batch_review()
+                            # can pull forward returns for it the same way it would a stock --
+                            # the journal schema doesn't need to change, just what goes in Ticker.
+                            "Ticker": SECTOR_ETFS[sector],
                         })
                         st.success("Saved to the decision journal.")
                     except Exception as e:
