@@ -105,7 +105,11 @@ def read_journal_via_github() -> pd.DataFrame:
 
 @st.cache_data(ttl=300)
 def load_history():
-    return storage.read_history()
+    csv = storage.CSV_MIRROR
+    if not csv.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(csv, parse_dates=["Date"])
+    return df
 
 
 def main():
