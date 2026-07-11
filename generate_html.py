@@ -71,7 +71,8 @@ def build_html() -> str:
         }
 
     payload     = json.dumps({"dates": available_dates, "latest": latest,
-                               "prior": prior, "data": dates_data})
+                               "prior": prior, "data": dates_data},
+                              ensure_ascii=True)
     sector_opts = "\n".join(f'<option value="{s}">{s}</option>' for s in SECTORS)
     etf_map     = json.dumps(SECTOR_ETFS)
 
