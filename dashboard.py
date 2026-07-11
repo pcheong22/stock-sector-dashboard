@@ -186,11 +186,22 @@ def main():
             "AvgGlobalScore": "{:.1f}", "MedianGlobalScore": "{:.1f}", "BreadthPct": "{:.0f}%",
             "ScoreChange": "{:+.1f}", "BreadthChange": "{:+.0f}pp",
         }
+        def _color_change(val):
+            if pd.isna(val):
+                return ""
+            if val > 2:
+                return "background-color: #1a472a; color: white"
+            if val > 0:
+                return "background-color: #2d6a4f; color: white"
+            if val < -2:
+                return "background-color: #6b1a1a; color: white"
+            if val < 0:
+                return "background-color: #8b3a3a; color: white"
+            return ""
+
         styled = sector_table.style.format(fmt, na_rep="—")
         if prior_date is not None:
-            styled = styled.background_gradient(
-                subset=["ScoreChange", "BreadthChange"], cmap="RdYlGn", vmin=-15, vmax=15
-            )
+            styled = styled.map(_color_change, subset=["ScoreChange", "BreadthChange"])
         st.dataframe(styled, use_container_width=True)
 
         col1, col2 = st.columns(2)
