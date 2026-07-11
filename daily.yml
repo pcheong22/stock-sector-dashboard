@@ -29,6 +29,9 @@ jobs:
 
       - name: Run daily pipeline
         run: python run_daily.py
+      
+      - name: Generate static dashboard
+        run: python generate_html.py
 
       - name: Commit updated history back to the repo
         run: |
