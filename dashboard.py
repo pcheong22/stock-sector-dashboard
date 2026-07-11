@@ -266,7 +266,7 @@ def main():
                     "Why? (cite the specific number -- AvgGlobalScore, BreadthPct, rank vs. other sectors)",
                     height=80,
                 )
-                notes = st.text_area("Anything else worth remembering? (optional)", height=60)
+                notes = st.text_area("Anything else worth remembering? (optional)", height=68)
                 submitted = st.form_submit_button("Save entry")
 
             if submitted:
