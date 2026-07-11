@@ -2,15 +2,11 @@ name: Daily Stock & Sector Scoring
 
 on:
   schedule:
-    # 21:30 UTC = after US market close (~4:30pm ET / 5:30pm EDT-adjacent).
-    # GitHub Actions cron is UTC and doesn't auto-adjust for daylight saving,
-    # so this runs roughly 30-90 min after close depending on time of year --
-    # fine for an end-of-day scoring run. Tighten if you care about the exact minute.
-    - cron: "30 21 * * 1-5"   # Mon-Fri only
-  workflow_dispatch: {}        # lets you trigger a run manually from the Actions tab
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}
 
 permissions:
-  contents: write   # needed to commit the day's data back to the repo
+  contents: write
 
 jobs:
   run-daily-pipeline:
@@ -30,12 +26,13 @@ jobs:
       - name: Run daily pipeline
         run: python run_daily.py
 
-      - name: Commit updated history back to the repo
+      - name: Generate static dashboard
+        run: python generate_html.py
+
+      - name: Commit updated history and dashboard back to the repo
         run: |
           git config user.name "daily-pipeline-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/
-          # Don't fail the job if there's nothing new to commit (e.g. market holiday
-          # where fetch returned no new bars, or the job already ran today).
+          git add data/ docs/
           git diff --cached --quiet && echo "No changes to commit." || git commit -m "Daily run: $(date -u +%Y-%m-%d)"
           git push
