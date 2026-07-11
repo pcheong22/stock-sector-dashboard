@@ -1,4 +1,4 @@
-""
+"""
 Append-only historical storage layer.
 
 This database -- not the model, not the dashboard UI -- is the project's
