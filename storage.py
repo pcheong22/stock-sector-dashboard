@@ -1,4 +1,4 @@
-"""
+""
 Append-only historical storage layer.
 
 This database -- not the model, not the dashboard UI -- is the project's
@@ -130,7 +130,8 @@ def read_history(columns: list[str] | None = None, tickers: list[str] | None = N
         filters.append(("Date", "<=", pd.to_datetime(end)))
 
     df = pd.read_parquet(PARQUET_DIR, columns=columns, filters=filters or None)
-    return df.sort_values(["Date", "Ticker"]).reset_index(drop=True)
+    sort_cols = [c for c in ["Date", "Ticker"] if c in df.columns]
+    return df.sort_values(sort_cols).reset_index(drop=True)
 
 
 def latest_date() -> pd.Timestamp | None:
