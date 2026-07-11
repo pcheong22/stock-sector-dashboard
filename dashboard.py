@@ -138,15 +138,13 @@ def main():
         ranked = day.sort_values("GlobalScore", ascending=False)[cols].reset_index(drop=True)
         ranked.index += 1
         ranked.index.name = "Rank"
-        st.dataframe(
-            ranked.style.format({
-                "GlobalScore": "{:.1f}", "SectorScore": "{:.1f}", "Price": "${:.2f}",
-                "ret_1M": "{:.1%}", "ret_3M": "{:.1%}", "ret_6M": "{:.1%}", "ret_12M": "{:.1%}",
-                "rsi_14": "{:.0f}",
-            }),
-            use_container_width=True,
-            height=600,
-        )
+        ranked["Price"] = ranked["Price"].map("${:.2f}".format)
+        for col in ["ret_1M", "ret_3M", "ret_6M", "ret_12M"]:
+            ranked[col] = ranked[col].map("{:.1%}".format)
+        ranked["GlobalScore"] = ranked["GlobalScore"].map("{:.1f}".format)
+        ranked["SectorScore"] = ranked["SectorScore"].map("{:.1f}".format)
+        ranked["rsi_14"] = ranked["rsi_14"].map("{:.0f}".format)
+        st.dataframe(ranked, use_container_width=True, height=600)
 
     with tab_sector:
         st.subheader("Sector Rankings")
@@ -186,23 +184,20 @@ def main():
             "AvgGlobalScore": "{:.1f}", "MedianGlobalScore": "{:.1f}", "BreadthPct": "{:.0f}%",
             "ScoreChange": "{:+.1f}", "BreadthChange": "{:+.0f}pp",
         }
-        def _color_change(val):
+        def _fmt_change(val, suffix=""):
             if pd.isna(val):
-                return ""
-            if val > 2:
-                return "background-color: #1a472a; color: white"
-            if val > 0:
-                return "background-color: #2d6a4f; color: white"
-            if val < -2:
-                return "background-color: #6b1a1a; color: white"
-            if val < 0:
-                return "background-color: #8b3a3a; color: white"
-            return ""
+                return "—"
+            arrow = "▲" if val > 0 else ("▼" if val < 0 else "→")
+            return f"{arrow} {val:+.1f}{suffix}"
 
-        styled = sector_table.style.format(fmt, na_rep="—")
-        if prior_date is not None:
-            styled = styled.map(_color_change, subset=["ScoreChange", "BreadthChange"])
-        st.dataframe(styled, use_container_width=True)
+        display_table = sector_table.copy()
+        display_table["AvgGlobalScore"] = display_table["AvgGlobalScore"].map("{:.1f}".format)
+        display_table["MedianGlobalScore"] = display_table["MedianGlobalScore"].map("{:.1f}".format)
+        display_table["BreadthPct"] = display_table["BreadthPct"].map("{:.0f}%".format)
+        display_table["ScoreChange"] = display_table["ScoreChange"].map(lambda v: _fmt_change(v))
+        display_table["BreadthChange"] = display_table["BreadthChange"].map(lambda v: _fmt_change(v, "pp"))
+
+        st.dataframe(display_table, use_container_width=True)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -223,17 +218,16 @@ def main():
                 "trend_r2_63d", "rsi_14", "rel_ret_3M_vs_market", "rel_ret_3M_vs_sector"]
         sub_display = sub[cols].reset_index(drop=True)
         sub_display.index += 1
-        st.dataframe(
-            sub_display.style.format({
-                "GlobalScore": "{:.1f}", "SectorScore": "{:.1f}", "Price": "${:.2f}",
-                "ret_1M": "{:.1%}", "ret_3M": "{:.1%}", "ret_6M": "{:.1%}", "ret_12M": "{:.1%}",
-                "dist_from_52w_high": "{:.1%}", "dist_from_52w_low": "{:.1%}",
-                "realized_vol_21d": "{:.1%}", "trend_r2_63d": "{:.2f}", "rsi_14": "{:.0f}",
-                "rel_ret_3M_vs_market": "{:.1%}", "rel_ret_3M_vs_sector": "{:.1%}",
-            }),
-            use_container_width=True,
-            height=500,
-        )
+        sub_display["Price"] = sub_display["Price"].map("${:.2f}".format)
+        for col in ["ret_1M", "ret_3M", "ret_6M", "ret_12M",
+                    "dist_from_52w_high", "dist_from_52w_low",
+                    "realized_vol_21d", "rel_ret_3M_vs_market", "rel_ret_3M_vs_sector"]:
+            sub_display[col] = sub_display[col].map("{:.1%}".format)
+        for col in ["GlobalScore", "SectorScore"]:
+            sub_display[col] = sub_display[col].map("{:.1f}".format)
+        sub_display["trend_r2_63d"] = sub_display["trend_r2_63d"].map("{:.2f}".format)
+        sub_display["rsi_14"] = sub_display["rsi_14"].map("{:.0f}".format)
+        st.dataframe(sub_display, use_container_width=True, height=500)
 
     with tab_journal:
         st.subheader("Log a Decision")
