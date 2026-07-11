@@ -323,7 +323,7 @@ async function loadJournal() {{
 }}
 
 // ── formatting ────────────────────────────────────────────────────────────
-const PCT_COLS    = new Set(["ret_1M","ret_3M","ret_6M","ret_12M","dist_from_52w_high","dist_from_52w_low","realized_vol_21d","rel_ret_3M_vs_market","rel_ret_3M_vs_sector","BreadthPct"]);
+const PCT_COLS    = new Set(["ret_1M","ret_3M","ret_6M","ret_12M","dist_from_52w_high","dist_from_52w_low","realized_vol_21d","rel_ret_3M_vs_market","rel_ret_3M_vs_sector"]);
 const DOLLAR_COLS = new Set(["Price"]);
 const SCORE_COLS  = new Set(["GlobalScore","SectorScore","AvgGlobalScore","MedianGlobalScore"]);
 const CHANGE_COLS = new Set(["ScoreChange","BreadthChange"]);
@@ -331,6 +331,7 @@ const CHANGE_COLS = new Set(["ScoreChange","BreadthChange"]);
 function fmt(col, val) {{
   if (val === null || val === undefined || val === "") return "—";
   if (DOLLAR_COLS.has(col))  return "$" + Number(val).toFixed(2);
+  if (col === "BreadthPct")  return Number(val).toFixed(0) + "%";
   if (PCT_COLS.has(col))     return (Number(val)*100).toFixed(1) + "%";
   if (col === "rsi_14")      return Number(val).toFixed(0);
   if (col === "trend_r2_63d") return Number(val).toFixed(2);
