@@ -111,8 +111,13 @@ def overwrite_date(scored: pd.DataFrame, date) -> int:
 
 
 def _append_csv_mirror(df: pd.DataFrame) -> None:
-    write_header = not CSV_MIRROR.exists()
-    df.to_csv(CSV_MIRROR, mode="a", header=write_header, index=False)
+    if CSV_MIRROR.exists():
+        existing = pd.read_csv(CSV_MIRROR)
+        combined = pd.concat([existing, df], ignore_index=True)
+        combined = combined.drop_duplicates(subset=["Date", "Ticker"], keep="last")
+        combined.to_csv(CSV_MIRROR, index=False)
+    else:
+        df.to_csv(CSV_MIRROR, index=False)
 
 
 def read_history(columns: list[str] | None = None, tickers: list[str] | None = None,
