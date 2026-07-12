@@ -71,9 +71,11 @@ def build_html() -> str:
             "drill_cols":  drill_cols,  "drill":       drill,
         }
 
-    payload     = json.dumps({"dates": available_dates, "latest": latest,
+    import base64
+    payload_json = json.dumps({"dates": available_dates, "latest": latest,
                                "prior": prior, "data": dates_data},
                               ensure_ascii=True)
+    payload_b64  = base64.b64encode(payload_json.encode("utf-8")).decode("ascii")
     sector_opts = "\n".join(f'<option value="{s}">{s}</option>' for s in SECTORS)
     etf_map     = json.dumps(SECTOR_ETFS)
 
@@ -220,7 +222,7 @@ summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin-bottom:10px}
 </div>
 
 <script>
-const DB   = """ + payload + """;
+const DB   = JSON.parse(atob(\"""" + payload_b64 + """"\"));
 const REPO = """ + json.dumps(REPO) + """;
 const ETFS = """ + etf_map + """;
 const JPATH = "data/decision_journal.csv";
