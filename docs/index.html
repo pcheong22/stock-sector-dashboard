@@ -192,12 +192,8 @@ function appendCSV(text,row){
   const cols=["Date","Decision","DashboardInfluenced","Reason","Outcome","Notes","Ticker"];
   const esc=v=>(v.includes(",")||v.includes('"')||v.includes("\n"))?'"'+v.replace(/"/g,'""')+'"':v;
   const line=row.map(esc).join(",");
-  if(!text.trim()) return cols.join(",")+"
-"+line+"
-";
-  return text.trimEnd()+"
-"+line+"
-";
+  if(!text.trim()) return cols.join(",")+"\n"+line+"\n";
+  return text.trimEnd()+"\n"+line+"\n";
 }
 
 async function submitEntry(){
