@@ -26,7 +26,8 @@ def build_payload():
     csv = storage.CSV_MIRROR
     if not Path(csv).exists():
         raise RuntimeError("No history.csv found -- run run_daily.py first.")
-    hist = pd.read_csv(csv, parse_dates=["Date"])
+    hist = pd.read_csv(csv)
+    hist["Date"] = pd.to_datetime(hist["Date"])
     hist = hist.drop_duplicates(subset=["Date", "Ticker"], keep="first")
     available_dates = sorted(hist["Date"].dt.strftime("%Y-%m-%d").unique(), reverse=True)
     latest = available_dates[0]
