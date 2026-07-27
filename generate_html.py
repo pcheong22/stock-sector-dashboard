@@ -34,8 +34,10 @@ def build_payload():
     prior  = available_dates[1] if len(available_dates) > 1 else None
 
     dates_data = {}
-    for date_str in available_dates:
+    for idx, date_str in enumerate(available_dates):
         day = hist[hist["Date"].dt.strftime("%Y-%m-%d") == date_str].copy()
+        # prior = the next entry in available_dates (which is sorted descending)
+        prior_for_date = available_dates[idx + 1] if idx + 1 < len(available_dates) else None
         global_cols = ["Ticker","Sector","GlobalScore","SectorScore","Price",
                        "ret_1M","ret_3M","ret_6M","ret_12M","rsi_14"]
         global_rows = (day.sort_values("GlobalScore", ascending=False)[global_cols]
@@ -43,8 +45,8 @@ def build_payload():
                                   "ret_1M":4,"ret_3M":4,"ret_6M":4,"ret_12M":4,"rsi_14":1})
                           .values.tolist())
         st_df = aggregate_sector_breadth(day)
-        if prior:
-            prior_day = hist[hist["Date"].dt.strftime("%Y-%m-%d") == prior]
+        if prior_for_date:
+            prior_day = hist[hist["Date"].dt.strftime("%Y-%m-%d") == prior_for_date]
             prior_st  = aggregate_sector_breadth(prior_day)[["Sector","AvgGlobalScore","BreadthPct"]]
             prior_st  = prior_st.rename(columns={"AvgGlobalScore":"_PA","BreadthPct":"_PB"})
             st_df = st_df.merge(prior_st, on="Sector", how="left")
