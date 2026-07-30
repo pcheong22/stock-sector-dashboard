@@ -69,7 +69,9 @@ def build_payload():
             "drill_cols":  drill_cols,  "drill":       drill,
         }
     payload = {"dates": available_dates, "latest": latest, "prior": prior, "data": dates_data}
-    b64 = base64.b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode("ascii")
+    # NaN is not valid JSON; replace with None (serialises as null)
+    payload_str = json.dumps(payload, ensure_ascii=True, allow_nan=False).replace("NaN", "null")
+    b64 = base64.b64encode(payload_str.encode()).decode("ascii")
     assert '"' not in b64 and "'" not in b64 and "\\" not in b64
     return b64
 
