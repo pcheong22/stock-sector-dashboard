@@ -126,15 +126,34 @@ def read_history(columns: list[str] | None = None, tickers: list[str] | None = N
     if not PARQUET_DIR.exists():
         return pd.DataFrame(columns=columns or SCHEMA_COLUMNS)
 
+    requested_columns = list(columns) if columns is not None else None
+    read_columns = list(requested_columns) if requested_columns is not None else None
+    if (start or end) and read_columns is not None and "Date" not in read_columns:
+        read_columns.append("Date")
+
+    # Date is a partition column and pyarrow exposes it as a string/category.
+    # Filtering it against a Timestamp inside read_parquet raises, so normalize
+    # it first and apply date bounds below. Non-partition ticker filters are safe.
     filters = []
     if tickers:
         filters.append(("Ticker", "in", tickers))
-    if start:
-        filters.append(("Date", ">=", pd.to_datetime(start)))
-    if end:
-        filters.append(("Date", "<=", pd.to_datetime(end)))
 
-    df = pd.read_parquet(PARQUET_DIR, columns=columns, filters=filters or None)
+    df = pd.read_parquet(
+        PARQUET_DIR,
+        columns=read_columns,
+        filters=filters or None,
+    )
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], format="mixed").dt.normalize()
+        if start:
+            df = df[df["Date"] >= pd.to_datetime(start).normalize()]
+        if end:
+            df = df[df["Date"] <= pd.to_datetime(end).normalize()]
+
+    if requested_columns is not None:
+        df = df[requested_columns]
+    else:
+        df = df[SCHEMA_COLUMNS]
     sort_cols = [c for c in ["Date", "Ticker"] if c in df.columns]
     return df.sort_values(sort_cols).reset_index(drop=True)
 
