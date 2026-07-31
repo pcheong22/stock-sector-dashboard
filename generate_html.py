@@ -3,9 +3,16 @@ Generates docs/index.html from the latest stored data.
 Writes HTML in pieces to avoid Python/JS string escaping conflicts.
 """
 from __future__ import annotations
-import json, base64
+import base64
+from datetime import date, datetime, timedelta
+import json
+import math
+import numbers
 from pathlib import Path
+
+import numpy as np
 import pandas as pd
+
 from momentum_model import aggregate_sector_breadth
 import storage
 
@@ -22,13 +29,97 @@ SECTOR_ETFS = {
 }
 REPO = "pcheong22/stock-sector-dashboard"
 
-def build_payload():
+GLOBAL_COLS = [
+    "Ticker", "Sector", "GlobalScore", "SectorScore", "Price",
+    "ret_1M", "ret_3M", "ret_6M", "ret_12M", "rsi_14",
+]
+DRILL_COLS = [
+    "Ticker", "GlobalScore", "SectorScore", "Price",
+    "ret_1M", "ret_3M", "ret_6M", "ret_12M",
+    "dist_from_52w_high", "dist_from_52w_low", "realized_vol_21d",
+    "trend_r2_63d", "rsi_14", "rel_ret_3M_vs_market",
+    "rel_ret_3M_vs_sector",
+]
+REQUIRED_HISTORY_COLS = {"Date", *GLOBAL_COLS, *DRILL_COLS}
+
+
+def normalize_json_value(value):
+    """Recursively convert supported values to strict JSON-compatible types.
+
+    Missing and non-finite numeric values become ``None``. Unsupported values
+    are intentionally left for ``json.dumps`` to reject rather than being
+    silently stringified.
+    """
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+    if isinstance(value, dict):
+        return {key: normalize_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [normalize_json_value(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return [normalize_json_value(item) for item in value.tolist()]
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value) if np.isfinite(value) else None
+    if isinstance(value, np.generic):
+        return normalize_json_value(value.item())
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return float(value) if math.isfinite(value) else None
+    if isinstance(value, (pd.Timestamp, datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (pd.Timedelta, timedelta)):
+        return value.isoformat()
+    return value
+
+
+def load_history() -> pd.DataFrame:
+    """Load and validate the CSV used to build the static dashboard."""
     csv = storage.CSV_MIRROR
     if not Path(csv).exists():
         raise RuntimeError("No history.csv found -- run run_daily.py first.")
+
     hist = pd.read_csv(csv)
-    hist["Date"] = pd.to_datetime(hist["Date"], format="mixed")
-    hist = hist.drop_duplicates(subset=["Date", "Ticker"], keep="first")
+    if hist.empty:
+        raise ValueError("history.csv contains no rows.")
+
+    missing = sorted(REQUIRED_HISTORY_COLS - set(hist.columns))
+    if missing:
+        raise ValueError(f"history.csv is missing required columns: {missing}")
+
+    parsed_dates = pd.to_datetime(hist["Date"], format="mixed", errors="coerce")
+    invalid_dates = hist.index[parsed_dates.isna()].tolist()
+    if invalid_dates:
+        raise ValueError(
+            f"history.csv contains invalid Date values at row(s): "
+            f"{[row + 2 for row in invalid_dates]}"
+        )
+    hist["Date"] = parsed_dates.dt.normalize()
+
+    duplicate_mask = hist.duplicated(subset=["Date", "Ticker"], keep=False)
+    if duplicate_mask.any():
+        duplicates = (
+            hist.loc[duplicate_mask, ["Date", "Ticker"]]
+            .drop_duplicates()
+            .head(5)
+        )
+        labels = [
+            f"{row.Date.date()}/{row.Ticker}"
+            for row in duplicates.itertuples(index=False)
+        ]
+        raise ValueError(
+            "history.csv contains duplicate Date/Ticker rows: "
+            + ", ".join(labels)
+        )
+    return hist
+
+
+def build_payload():
+    hist = load_history()
     available_dates = sorted(hist["Date"].dt.strftime("%Y-%m-%d").unique(), reverse=True)
     latest = available_dates[0]
     prior  = available_dates[1] if len(available_dates) > 1 else None
@@ -38,9 +129,7 @@ def build_payload():
         day = hist[hist["Date"].dt.strftime("%Y-%m-%d") == date_str].copy()
         # prior = the next entry in available_dates (which is sorted descending)
         prior_for_date = available_dates[idx + 1] if idx + 1 < len(available_dates) else None
-        global_cols = ["Ticker","Sector","GlobalScore","SectorScore","Price",
-                       "ret_1M","ret_3M","ret_6M","ret_12M","rsi_14"]
-        global_rows = (day.sort_values("GlobalScore", ascending=False)[global_cols]
+        global_rows = (day.sort_values("GlobalScore", ascending=False)[GLOBAL_COLS]
                           .round({"GlobalScore":1,"SectorScore":1,"Price":2,
                                   "ret_1M":4,"ret_3M":4,"ret_6M":4,"ret_12M":4,"rsi_14":1})
                           .values.tolist())
@@ -55,22 +144,22 @@ def build_payload():
             st_df = st_df.drop(columns=["_PA","_PB"])
         sector_rows = st_df.round({"AvgGlobalScore":1,"MedianGlobalScore":1,"BreadthPct":1}).values.tolist()
         sector_cols = list(st_df.columns)
-        drill_cols = ["Ticker","GlobalScore","SectorScore","Price",
-                      "ret_1M","ret_3M","ret_6M","ret_12M",
-                      "dist_from_52w_high","dist_from_52w_low","realized_vol_21d",
-                      "trend_r2_63d","rsi_14","rel_ret_3M_vs_market","rel_ret_3M_vs_sector"]
         drill = {}
         for sector, grp in day.groupby("Sector"):
-            drill[sector] = (grp.sort_values("SectorScore", ascending=False)[drill_cols]
+            drill[sector] = (grp.sort_values("SectorScore", ascending=False)[DRILL_COLS]
                                .round(4).values.tolist())
         dates_data[date_str] = {
-            "global_cols": global_cols, "global_rows": global_rows,
+            "global_cols": GLOBAL_COLS, "global_rows": global_rows,
             "sector_cols": sector_cols, "sector_rows": sector_rows,
-            "drill_cols":  drill_cols,  "drill":       drill,
+            "drill_cols":  DRILL_COLS,  "drill":       drill,
         }
     payload = {"dates": available_dates, "latest": latest, "prior": prior, "data": dates_data}
-    # NaN is not valid JSON; replace with None (serialises as null)
-    payload_str = json.dumps(payload, ensure_ascii=True, allow_nan=False).replace("NaN", "null")
+    payload_str = json.dumps(
+        normalize_json_value(payload),
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
     b64 = base64.b64encode(payload_str.encode()).decode("ascii")
     assert '"' not in b64 and "'" not in b64 and "\\" not in b64
     return b64
@@ -274,6 +363,25 @@ function appendCSV(text,row){
   return text.trimEnd()+("\\n")+line+("\\n");
 }
 
+function parseCSV(text){
+  var rows=[],row=[],field="",quoted=false;
+  for(var i=0;i<text.length;i++){
+    var ch=text[i];
+    if(quoted){
+      if(ch==='"'&&text[i+1]==='"'){field+='"';i++;}
+      else if(ch==='"'){quoted=false;}
+      else{field+=ch;}
+    }else if(ch==='"'){quoted=true;}
+    else if(ch===","){row.push(field);field="";}
+    else if(ch==="\\n"){
+      row.push(field);rows.push(row);row=[];field="";
+    }else if(ch!=="\\r"){field+=ch;}
+  }
+  if(quoted) throw new Error("Journal CSV contains an unterminated quoted field.");
+  if(field||row.length){row.push(field);rows.push(row);}
+  return rows;
+}
+
 async function submitEntry(){
   var msg=document.getElementById("j-msg");
   msg.className="msg"; msg.textContent="";
@@ -305,9 +413,9 @@ async function loadJournal(){
     var tbl=document.getElementById("journal-table");
     if(!existing){tbl.innerHTML="<tr><td>No entries yet.</td></tr>";return;}
     var text=decodeURIComponent(escape(atob(existing.content.replace(/\\n/g,""))));
-    var lines=text.trim().split("\\n");
-    var cols=lines[0].split(",");
-    var rows=lines.slice(1).reverse().map(function(l){return l.split(",");});
+    var parsed=parseCSV(text);
+    var cols=parsed[0]||[];
+    var rows=parsed.slice(1).reverse();
     buildTable(tbl,cols,rows,0);
   }catch(e){alert(e.message);}
 }
@@ -317,6 +425,12 @@ var PCT_COLS={"ret_1M":1,"ret_3M":1,"ret_6M":1,"ret_12M":1,"dist_from_52w_high":
 var DOLLAR_COLS={"Price":1};
 var SCORE_COLS={"GlobalScore":1,"SectorScore":1,"AvgGlobalScore":1,"MedianGlobalScore":1};
 var CHANGE_COLS={"ScoreChange":1,"BreadthChange":1};
+
+function escHtml(val){
+  return String(val).replace(/[&<>"']/g,function(ch){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+  });
+}
 
 function fmt(col,val){
   if(val===null||val===undefined||val==="") return "\u2014";
@@ -333,7 +447,7 @@ function fmt(col,val){
     var cls=n>0?"up":n<0?"down":"";
     return '<span class="'+cls+'">'+arrow+" "+(n>0?"+":"")+n.toFixed(1)+suffix+"</span>";
   }
-  return val;
+  return escHtml(val);
 }
 
 function buildTable(tableEl,cols,rows,rankOffset){
