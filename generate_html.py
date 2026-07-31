@@ -3,7 +3,10 @@ Generates docs/index.html from the latest stored data.
 Writes HTML in pieces to avoid Python/JS string escaping conflicts.
 """
 from __future__ import annotations
-import json, base64
+import base64
+import json
+import math
+import numbers
 from pathlib import Path
 import pandas as pd
 from momentum_model import aggregate_sector_breadth
@@ -21,6 +24,22 @@ SECTOR_ETFS = {
     "Real Estate":"XLRE","Communication Services":"XLC",
 }
 REPO = "pcheong22/stock-sector-dashboard"
+
+def json_safe(value):
+    """Return a JSON-safe copy with non-finite real numbers replaced by nulls."""
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(json_safe(item) for item in value)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return float(value) if math.isfinite(value) else None
+    return value
 
 def build_payload():
     csv = storage.CSV_MIRROR
@@ -69,8 +88,7 @@ def build_payload():
             "drill_cols":  drill_cols,  "drill":       drill,
         }
     payload = {"dates": available_dates, "latest": latest, "prior": prior, "data": dates_data}
-    # NaN is not valid JSON; replace with None (serialises as null)
-    payload_str = json.dumps(payload, ensure_ascii=True, allow_nan=False).replace("NaN", "null")
+    payload_str = json.dumps(json_safe(payload), ensure_ascii=True, allow_nan=False)
     b64 = base64.b64encode(payload_str.encode()).decode("ascii")
     assert '"' not in b64 and "'" not in b64 and "\\" not in b64
     return b64
