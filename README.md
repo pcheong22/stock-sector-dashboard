@@ -29,6 +29,7 @@ abstract than that on purpose — see the handoff doc for why.
 | `momentum_model.py` | `MomentumModel`, the first `ScoringEngine` implementation |
 | `storage.py` | Append-only historical Parquet/CSV store, matching the handoff schema exactly |
 | `run_daily.py` | The script to run once per trading day: fetch → features → score → store |
+| `paper_trading.py` | Paper-only Top-5 and Top-minus-Bottom portfolio ledger; no broker integration |
 | `dashboard.py` | Streamlit UI: global rankings, sector rankings, sector drill-down |
 | `decision_journal.py` | Phase 2 decision log + Phase 3 batch outcome review |
 
@@ -48,6 +49,24 @@ The first run will only have one day of history, which is enough for the
 Global/Sector Rankings tabs (current-day scores don't need history) but
 not for forward-return analysis — that accumulates as you keep running
 `run_daily.py` each trading day.
+
+## Prospective paper portfolio
+
+The daily pipeline also maintains a deliberately non-live paper portfolio
+under the **Paper Portfolio** dashboard tab. Its rules are frozen so the
+prospective results remain comparable:
+
+- rank the 11 dashboard sectors by average constituent `GlobalScore`;
+- select the Top 5 and Bottom 5 every 10 stored trading days;
+- execute hypothetically at the next trading-day close using the mapped
+  sector ETFs;
+- charge 10 basis points one-way on measured sector-membership turnover;
+- track Top 5 Long, Top 5 minus Bottom 5, and SPY from a $1 starting value.
+
+The files `data/paper_trading_signals.csv`, `data/paper_trading_orders.csv`,
+`data/paper_trading_ledger.csv`, and `data/paper_trading_state.json` are the
+audit trail. Every recorded order is explicitly labeled `NO — PAPER ONLY`.
+There is no broker API, order routing, or live-capital capability.
 
 ## Running it fully automatically (recommended — zero daily friction)
 

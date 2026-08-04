@@ -14,6 +14,7 @@ import requests
 import streamlit as st
 
 import storage
+import paper_trading
 from momentum_model import aggregate_sector_breadth
 from config import SECTOR_ETFS
 
@@ -100,8 +101,8 @@ def main():
     st.sidebar.caption(f"Model: {day['ModelVersion'].iloc[0]}")
     st.sidebar.caption(f"{len(day)} tickers scored")
 
-    tab_sector, tab_global, tab_drill, tab_journal = st.tabs(
-        ["Sector Rankings", "Global Rankings", "Sector Drill-Down", "Log a Decision"]
+    tab_sector, tab_global, tab_drill, tab_paper, tab_journal = st.tabs(
+        ["Sector Rankings", "Global Rankings", "Sector Drill-Down", "Paper Portfolio", "Log a Decision"]
     )
 
     # ── Sector Rankings ───────────────────────────────────────────────────────
@@ -172,6 +173,31 @@ def main():
         sub["trend_r2_63d"] = sub["trend_r2_63d"].map("{:.2f}".format)
         sub["rsi_14"] = sub["rsi_14"].map("{:.0f}".format)
         html_table(sub)
+
+    # ── Prospective paper portfolio ──────────────────────────────────────────
+    with tab_paper:
+        st.subheader("Prospective Paper Portfolio")
+        paper = paper_trading.dashboard_payload(storage.DATA_DIR)
+        st.warning(paper["disclaimer"])
+        st.caption(paper["rules"])
+        latest = paper.get("latest") or {}
+        cols = st.columns(4)
+        cols[0].metric("Status", paper["status"])
+        cols[1].metric("Top 5 equity", f"{latest.get('top5_equity', 1):.3f}x")
+        cols[2].metric("Long-short equity", f"{latest.get('long_short_equity', 1):.3f}x")
+        cols[3].metric("SPY equity", f"{latest.get('spy_equity', 1):.3f}x")
+        if paper.get("pending"):
+            pending = paper["pending"]
+            st.info(
+                f"Pending next-close signal from {pending['signal_date']}. "
+                f"Top: {', '.join(pending['top'])}. "
+                f"Bottom: {', '.join(pending['bottom'])}."
+            )
+        if paper["ledger_rows"]:
+            paper_frame = pd.DataFrame(paper["ledger_rows"], columns=paper["ledger_cols"])
+            html_table(paper_frame)
+        else:
+            st.caption("No paper observations yet.")
 
     # ── Log a Decision ────────────────────────────────────────────────────────
     with tab_journal:

@@ -1,5 +1,5 @@
 """
-Daily pipeline: fetch -> features -> score -> store.
+Daily pipeline: fetch -> features -> score -> store -> paper portfolio.
 
 This is the script meant to run once per trading day (cron / Task
 Scheduler / GitHub Action -- whatever fits). It is intentionally a thin
@@ -20,24 +20,25 @@ from data_fetch import fetch_price_history
 from features import build_features
 from momentum_model import MomentumModel
 import storage
+import paper_trading
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("run_daily")
 
 
 def run(overwrite: bool = False) -> None:
-    log.info("Step 1/4: fetching price history...")
+    log.info("Step 1/5: fetching price history...")
     prices = fetch_price_history()
 
-    log.info("Step 2/4: building features...")
+    log.info("Step 2/5: building features...")
     feats = build_features(prices)
     log.info("Built features for %d tickers as of %s", len(feats), feats["Date"].max())
 
-    log.info("Step 3/4: scoring with MomentumModel...")
+    log.info("Step 3/5: scoring with MomentumModel...")
     model = MomentumModel()
     scored = model.score(feats)
 
-    log.info("Step 4/4: storing results...")
+    log.info("Step 4/5: storing results...")
     run_date = scored["Date"].iloc[0]
     if overwrite:
         n = storage.overwrite_date(scored, run_date)
@@ -50,6 +51,16 @@ def run(overwrite: bool = False) -> None:
             # Already have data for this date (e.g. a same-day manual re-run,
             # or the scheduled job firing twice). Not an error -- just a no-op.
             log.info("Nothing new to store: %s", e)
+
+    log.info("Step 5/5: updating the paper-only portfolio ledger...")
+    state = paper_trading.update(scored, prices, storage.DATA_DIR)
+    log.info(
+        "Paper tracker: %s; Top 5 %.4f, long-short %.4f, SPY %.4f.",
+        state["last_processed_date"],
+        state["top5_equity"],
+        state["long_short_equity"],
+        state["spy_equity"],
+    )
 
 
 if __name__ == "__main__":

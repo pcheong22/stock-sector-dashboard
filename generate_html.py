@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from momentum_model import aggregate_sector_breadth
+import paper_trading
 import storage
 
 SECTORS = [
@@ -153,7 +154,13 @@ def build_payload():
             "sector_cols": sector_cols, "sector_rows": sector_rows,
             "drill_cols":  DRILL_COLS,  "drill":       drill,
         }
-    payload = {"dates": available_dates, "latest": latest, "prior": prior, "data": dates_data}
+    payload = {
+        "dates": available_dates,
+        "latest": latest,
+        "prior": prior,
+        "data": dates_data,
+        "paper": paper_trading.dashboard_payload(storage.DATA_DIR),
+    }
     payload_str = json.dumps(
         normalize_json_value(payload),
         ensure_ascii=True,
@@ -220,6 +227,11 @@ textarea{resize:vertical;min-height:72px}
 .token-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .token-row input{flex:1}
 .token-note{font-size:.78rem;color:var(--muted);margin-bottom:14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0 18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.card-label{color:var(--muted);font-size:.78rem;margin-bottom:5px}
+.card-value{font-size:1.25rem;font-weight:700}
+.paper-warning{background:#332b16;border:1px solid #6e5b20;color:#f2d77a;padding:10px 12px;border-radius:7px;margin-bottom:12px;font-size:.85rem}
 details{margin-top:24px}
 summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin-bottom:10px}
 </style>
@@ -235,6 +247,7 @@ summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin-bottom:10px}
   <div class="tab active" data-tab="sector">Sector Rankings</div>
   <div class="tab" data-tab="global">Global Rankings</div>
   <div class="tab" data-tab="drill">Sector Drill-Down</div>
+  <div class="tab" data-tab="paper">Paper Portfolio</div>
   <div class="tab" data-tab="journal">Log a Decision</div>
 </div>
 <div id="sector" class="panel active">
@@ -251,6 +264,19 @@ summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin-bottom:10px}
     <select id="drill-sector"></select>
   </div>
   <div class="table-wrap"><table id="drill-table"></table></div>
+</div>
+<div id="paper" class="panel">
+  <h2 style="font-size:1rem;margin-bottom:8px">Prospective Paper Portfolio</h2>
+  <div class="paper-warning" id="paper-warning"></div>
+  <p class="caption" id="paper-rules"></p>
+  <div class="cards">
+    <div class="card"><div class="card-label">Status</div><div class="card-value" id="paper-status">—</div></div>
+    <div class="card"><div class="card-label">Top 5 equity</div><div class="card-value" id="paper-top">—</div></div>
+    <div class="card"><div class="card-label">Long-short equity</div><div class="card-value" id="paper-ls">—</div></div>
+    <div class="card"><div class="card-label">SPY equity</div><div class="card-value" id="paper-spy">—</div></div>
+  </div>
+  <p class="caption" id="paper-pending"></p>
+  <div class="table-wrap"><table id="paper-table"></table></div>
 </div>
 <div id="journal" class="panel">
   <h2 style="font-size:1rem;margin-bottom:4px">Log a Decision</h2>
@@ -425,6 +451,7 @@ var PCT_COLS={"ret_1M":1,"ret_3M":1,"ret_6M":1,"ret_12M":1,"dist_from_52w_high":
 var DOLLAR_COLS={"Price":1};
 var SCORE_COLS={"GlobalScore":1,"SectorScore":1,"AvgGlobalScore":1,"MedianGlobalScore":1};
 var CHANGE_COLS={"ScoreChange":1,"BreadthChange":1};
+var EQUITY_COLS={"Top 5 Equity":1,"Long-Short Equity":1,"SPY Equity":1};
 
 function escHtml(val){
   return String(val).replace(/[&<>"']/g,function(ch){
@@ -440,6 +467,7 @@ function fmt(col,val){
   if(col==="rsi_14") return Number(val).toFixed(0);
   if(col==="trend_r2_63d") return Number(val).toFixed(2);
   if(SCORE_COLS[col]) return Number(val).toFixed(1);
+  if(EQUITY_COLS[col]) return Number(val).toFixed(3)+"x";
   if(CHANGE_COLS[col]){
     var n=Number(val);
     var suffix=col==="BreadthChange"?"pp":"";
@@ -502,6 +530,23 @@ function renderDrill(d){
   buildTable(document.getElementById("drill-table"),d.drill_cols,d.drill[s],1);
 }
 
+function renderPaper(){
+  var p=DB.paper||{};
+  document.getElementById("paper-warning").textContent=p.disclaimer||"Paper research only.";
+  document.getElementById("paper-rules").textContent=p.rules||"";
+  document.getElementById("paper-status").textContent=p.status||"Not initialized";
+  function equity(v){return v===null||v===undefined?"—":Number(v).toFixed(3)+"x";}
+  var latest=p.latest||{};
+  document.getElementById("paper-top").textContent=equity(latest.top5_equity);
+  document.getElementById("paper-ls").textContent=equity(latest.long_short_equity);
+  document.getElementById("paper-spy").textContent=equity(latest.spy_equity);
+  var pending=p.pending;
+  document.getElementById("paper-pending").textContent=pending
+    ? "Pending next-close signal from "+pending.signal_date+" — Top: "+pending.top.join(", ")+" | Bottom: "+pending.bottom.join(", ")
+    : "No pending rebalance signal.";
+  buildTable(document.getElementById("paper-table"),p.ledger_cols||[],p.ledger_rows||[],0);
+}
+
 // init
 var dateSelect=document.getElementById("date-select");
 DB.dates.forEach(function(d){var o=document.createElement("option");o.value=o.textContent=d;dateSelect.appendChild(o);});
@@ -518,6 +563,7 @@ document.querySelectorAll(".tab").forEach(function(tab){
 document.getElementById("j-date").value=new Date().toISOString().slice(0,10);
 updateTokenStatus();
 render(DB.latest);
+renderPaper();
 </script>
 </body>
 </html>
