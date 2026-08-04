@@ -1,0 +1,30 @@
+{
+  "active_bottom": [],
+  "active_top": [],
+  "last_prices": {},
+  "last_processed_date": "2026-08-04",
+  "last_signal_date": "2026-08-04",
+  "long_short_equity": 1.0,
+  "pending_signal": {
+    "bottom": [
+      "Materials",
+      "Consumer Staples",
+      "Utilities",
+      "Consumer Discretionary",
+      "Communication Services"
+    ],
+    "model_version": "momentum_v1",
+    "signal_date": "2026-08-04",
+    "top": [
+      "Health Care",
+      "Industrials",
+      "Financials",
+      "Energy",
+      "Real Estate"
+    ]
+  },
+  "spy_equity": 1.0,
+  "top5_equity": 1.0,
+  "trading_days_since_signal": 0,
+  "version": 1
+}

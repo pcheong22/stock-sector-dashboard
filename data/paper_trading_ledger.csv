@@ -1,0 +1,2 @@
+Date,Top5Equity,LongShortEquity,SPYEquity,Top5DailyReturn,LongShortDailyReturn,SPYDailyReturn,TopSectors,BottomSectors,PendingSignalDate,Event
+2026-08-04,1.0,1.0,1.0,0.0,0.0,0.0,,,2026-08-04,Signal created for next close
