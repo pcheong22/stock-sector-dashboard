@@ -1,0 +1,2 @@
+ExecutionDate,SignalDate,HorizonTradingDays,CostBps,TopTurnover,BottomTurnover,TopSectors,BottomSectors,Top5Cost,LongShortCost,LiveOrder
+2026-08-05,2026-08-04,10,10,1.0,1.0,Health Care | Industrials | Financials | Energy | Real Estate,Materials | Consumer Staples | Utilities | Consumer Discretionary | Communication Services,0.001,0.002,NO — PAPER ONLY
