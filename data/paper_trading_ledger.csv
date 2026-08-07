@@ -1,3 +1,4 @@
 Date,Top5Equity,LongShortEquity,SPYEquity,Top5DailyReturn,LongShortDailyReturn,SPYDailyReturn,TopSectors,BottomSectors,PendingSignalDate,Event
 2026-08-04,1.0,1.0,1.0,0.0,0.0,0.0,,,2026-08-04,Signal created for next close
 2026-08-05,0.999,0.998,1.0,0.0,0.0,0.0,Health Care | Industrials | Financials | Energy | Real Estate,Materials | Consumer Staples | Utilities | Consumer Discretionary | Communication Services,,Paper rebalance executed
+2026-08-06,0.9982330840615415,1.0011610908445976,0.998402186955068,-0.0007676836220805283,0.0031674256959894898,-0.001597813044932006,Health Care | Industrials | Financials | Energy | Real Estate,Materials | Consumer Staples | Utilities | Consumer Discretionary | Communication Services,,Marked to market
