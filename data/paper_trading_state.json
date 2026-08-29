@@ -26,12 +26,12 @@
     "XLV": 175.67999267578125,
     "XLY": 118.58999633789062
   },
-  "last_processed_date": "2026-08-27",
+  "last_processed_date": "2026-08-28",
   "last_signal_date": "2026-08-18",
-  "long_short_equity": 1.1403732256549974,
+  "long_short_equity": 1.1313648913802823,
   "pending_signal": null,
-  "spy_equity": 1.004859558096333,
-  "top5_equity": 1.1124758030984032,
-  "trading_days_since_signal": 7,
+  "spy_equity": 1.0052384455606913,
+  "top5_equity": 1.0975977001350619,
+  "trading_days_since_signal": 8,
   "version": 1
 }
