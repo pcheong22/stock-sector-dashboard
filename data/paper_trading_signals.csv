@@ -1,3 +1,4 @@
 SignalDate,EntryRule,HorizonTradingDays,TopSectors,BottomSectors,ScoreMetric,ModelVersion,Status,ExecutedDate
 2026-08-04,Next trading-day close,10,Health Care | Industrials | Financials | Energy | Real Estate,Materials | Consumer Staples | Utilities | Consumer Discretionary | Communication Services,Average constituent GlobalScore,momentum_v1,Executed,2026-08-05
 2026-08-18,Next trading-day close,10,Health Care | Energy | Financials | Industrials | Real Estate,Technology | Utilities | Communication Services | Consumer Discretionary | Consumer Staples,Average constituent GlobalScore,momentum_v1,Executed,2026-08-19
+2026-09-01,Next trading-day close,10,Health Care | Energy | Financials | Technology | Real Estate,Communication Services | Industrials | Consumer Staples | Consumer Discretionary | Utilities,Average constituent GlobalScore,momentum_v1,Pending,
