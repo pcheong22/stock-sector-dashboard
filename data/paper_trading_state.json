@@ -1,54 +1,37 @@
 {
   "active_bottom": [
-    "Technology",
-    "Utilities",
     "Communication Services",
+    "Industrials",
+    "Consumer Staples",
     "Consumer Discretionary",
-    "Consumer Staples"
+    "Utilities"
   ],
   "active_top": [
     "Health Care",
     "Energy",
     "Financials",
-    "Industrials",
+    "Technology",
     "Real Estate"
   ],
   "last_prices": {
-    "SPY": 769.0599975585938,
-    "XLC": 111.31999969482422,
-    "XLE": 63.58000183105469,
-    "XLF": 57.47999954223633,
-    "XLI": 181.9499969482422,
-    "XLK": 183.63999938964844,
-    "XLP": 86.54000091552734,
-    "XLRE": 44.9900016784668,
-    "XLU": 44.02000045776367,
-    "XLV": 175.67999267578125,
-    "XLY": 118.58999633789062
+    "SPY": 765.1599731445312,
+    "XLC": 112.41999816894531,
+    "XLE": 65.0999984741211,
+    "XLF": 57.65999984741211,
+    "XLI": 172.77999877929688,
+    "XLK": 183.60000610351562,
+    "XLP": 85.52999877929688,
+    "XLRE": 43.72999954223633,
+    "XLU": 42.66999816894531,
+    "XLV": 172.9499969482422,
+    "XLY": 114.86000061035156
   },
-  "last_processed_date": "2026-09-01",
+  "last_processed_date": "2026-09-02",
   "last_signal_date": "2026-09-01",
-  "long_short_equity": 1.128506831552904,
-  "pending_signal": {
-    "bottom": [
-      "Communication Services",
-      "Industrials",
-      "Consumer Staples",
-      "Consumer Discretionary",
-      "Utilities"
-    ],
-    "model_version": "momentum_v1",
-    "signal_date": "2026-09-01",
-    "top": [
-      "Health Care",
-      "Energy",
-      "Financials",
-      "Technology",
-      "Real Estate"
-    ]
-  },
-  "spy_equity": 0.9931203838277598,
-  "top5_equity": 1.0633836316332403,
-  "trading_days_since_signal": 0,
+  "long_short_equity": 1.1274287147809976,
+  "pending_signal": null,
+  "spy_equity": 0.9880841138939094,
+  "top5_equity": 1.0489444621568171,
+  "trading_days_since_signal": 1,
   "version": 1
 }
