@@ -26,12 +26,29 @@
     "XLV": 179.27999877929688,
     "XLY": 113.0999984741211
   },
-  "last_processed_date": "2026-11-04",
-  "last_signal_date": "2026-10-22",
-  "long_short_equity": 1.3876167937279655,
-  "pending_signal": null,
-  "spy_equity": 1.0006538056897258,
-  "top5_equity": 1.2259540393261417,
-  "trading_days_since_signal": 9,
+  "last_processed_date": "2026-11-05",
+  "last_signal_date": "2026-11-05",
+  "long_short_equity": 1.3251884184019704,
+  "pending_signal": {
+    "bottom": [
+      "Industrials",
+      "Technology",
+      "Consumer Discretionary",
+      "Communication Services",
+      "Financials"
+    ],
+    "model_version": "momentum_v1",
+    "signal_date": "2026-11-05",
+    "top": [
+      "Health Care",
+      "Energy",
+      "Consumer Staples",
+      "Utilities",
+      "Materials"
+    ]
+  },
+  "spy_equity": 0.9651423975238828,
+  "top5_equity": 1.1917021944364687,
+  "trading_days_since_signal": 0,
   "version": 1
 }
